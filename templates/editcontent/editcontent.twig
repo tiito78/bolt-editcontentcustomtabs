@@ -8,8 +8,8 @@
 {% block page_nav 'Content/*' %}
 
 {% block page_title %}
-    {% set contenttype = {'%contenttype%': context.contenttype.slug} %}
-    {% if context.content.title is not empty %}
+    {% set contenttype = {'%contenttype%': context.contenttype.singular_name} %}
+    {% if context.content.title is not empty or context.contenttype.singleton %}
         {{ __('contenttypes.generic.edit', contenttype) }}
     {% else %}
         {{ __('contenttypes.generic.new', contenttype) }}
@@ -22,6 +22,7 @@
 {% block messages "" %}
 
 {% block page_main %}
+    {% form_theme context.form '@bolt/editcontent/form/editcontent_form_layout.twig' %}
     {% set status_names = {
         'published': __('general.phrase.published'),
         'held':      __('general.phrase.not-published'),
@@ -32,26 +33,28 @@
     {% set dateChanged %}{{ buic_moment(context.content.datechanged) }}{% endset %}
 
     {% set bind_data = {
+        bind:           'editcontent',
         savedon:        __('general.phrase.saved-on-colon') ~ ' <strong></strong> <small>(' ~ dateChanged ~ ')</small></p>',
         newRecord:      context.content.id != 0 ? false : true,
+        duplicate:      context.duplicate,
         msgNotSaved:    __('contenttypes.generic.saving-impossible', {'%contenttype%': context.contenttype.slug}),
         hasGroups:      context.has.tabs,
         singularSlug:   context.contenttype.singular_slug,
+        previewUrl:     path('preview', {'contenttypeslug': context.contenttype.singular_slug}),
+        actionUrl:      path('contentaction'),
+        overviewUrl:    path('overview', {'contenttypeslug': context.contenttype.singular_slug})
     } %}
 
     {% set attr_form = {
-        _bind:   ['editcontent', bind_data],
-        class:   'form-horizontal' ~ (context.has.tabs ? ' tab-content' : ''),
-        enctype: 'multipart/form-data',
-        id:      'editcontent',
-        method:  'post',
+        'data-bind': bind_data|json_encode,
+        'class':     'form-horizontal' ~ (context.has.tabs ? ' tab-content' : ''),
     } %}
 
     {% set attributes = {
         hid_editreferrer: {
             name_id:  'editreferrer',
             type:     'hidden',
-            value:    editreferrer|default(''),
+            value:    context.editreferrer|default(''),
         },
 
         hid_contenttype: {
@@ -63,24 +66,18 @@
 
     <div class="row">
         <div class="col-md-8">
+
             {{ include('@bolt/_sub/_messages.twig') }}
 
             {{ widgets('editcontent_below_header', 'backend') }}
+
             {# Only if we have grouping tabs. #}
             {% if context.has.tabs %}
                 <ul class="nav nav-tabs" id="filtertabs">
-                    {% for group_name, group in context.groups if group_name != 'meta' and group_name != 'relations' %}
+                    {% for group_name, group in context.groups if group_name != 'meta' %}                        
                         <li{{ group.is_active ? ' class="active"' : '' }} id="tabindicator-{{ group.id }}">
                             <a href="#{{ group.id }}" data-toggle="tab">{{ group.label }}</a>
                         </li>
-                    {% endfor %}
-                    {% for group_name, group in context.groups if group_name == 'relations' %}
-                        {% for relation in context.contenttype.relations|default([])|merge(context.incoming_not_inv) if not output and not relation.group %} 
-                            {% set output = true %}
-                            <li{{ group.is_active ? ' class="active"' : '' }} id="tabindicator-{{ group.id }}">
-                                <a href="#{{ group.id }}" data-toggle="tab">{{ group.label }}</a>
-                            </li>
-                        {% endfor %}
                     {% endfor %}
                     {% for group_name, group in context.groups if group_name == 'meta' %}
                         <li{{ group.is_active ? ' class="active"' : '' }} id="tabindicator-{{ group.id }}">
@@ -89,7 +86,8 @@
                     {% endfor %}
                 </ul>
             {% endif %}
-            <form{{ macro.attr(attr_form) }}>
+            {{ form_start(context.form, {'attr': attr_form}) }}
+                {{ form_widget(context.form._token, { 'attr': { 'autocomplete': 'off' } }) }}
                 {{ include('@bolt/_sub/_csrf_token.twig') }}
 
                 <input{{ macro.attr(attributes.hid_editreferrer) }}>
@@ -102,12 +100,19 @@
                     {% endif %}
 
                     {% for key in group.fields %}
-                        {% if key == '*meta' %}
+                        {% if key == '*relations' %}
+                            {{ include('@bolt/editcontent/_relations.twig') }}
+
+                        {% elseif key == '*taxonomy' %}
+                            {{ include('@bolt/editcontent/_taxonomies.twig') }}
+
+                        {% elseif key == '*meta' %}
                             <div data-bolt-fieldset="meta">
                                 {{ include('@bolt/editcontent/fields/_meta.twig') }}
                             </div>
-                        {% elseif key == '*relations' %}
-                            {{ include('@bolt/editcontent/_relations.twig') }}
+
+                        {% elseif key == '*template' %}
+                            {{ include('@bolt/editcontent/_templatefields.twig') }}
                         {% else %}
                             {{ include('@bolt/editcontent/_field.twig') }}
                         {% endif %}
@@ -147,7 +152,7 @@
                 <input type="hidden" name="_live-editor-preview" value=""/>
 
                 {{ include('@bolt/editcontent/_buttons.twig') }}
-            </form>
+            {{ form_end(context.form, { 'render_rest': false }) }}
 
             {{ include('@bolt/editcontent/_includes-data.twig') }}
 

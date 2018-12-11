@@ -19,7 +19,7 @@ class EditcontentcustomtabsExtension extends SimpleExtension
     {
         $app['storage.request.edit'] = $app->share(
             function ($app) {
-                return new ContentRequest\CustomEdit(
+                $cr = new ContentRequest\CustomEdit(
                     $app['storage'],
                     $app['config'],
                     $app['users'],
@@ -27,13 +27,14 @@ class EditcontentcustomtabsExtension extends SimpleExtension
                     $app['logger.system'],
                     $app['logger.flash']
                 );
+                // @deprecated Temporary and to be removed circa Bolt 3.5.
+                $cr->setQueryHandler($app['query']);
+                return $cr;
             }
         );
     }
 
-    /**
-     * @inheritdoc
-     */
+
     protected function registerTwigPaths()
     {
         return [
