@@ -29,6 +29,7 @@ class EditcontentcustomtabsExtension extends SimpleExtension
                 );
                 // @deprecated Temporary and to be removed circa Bolt 3.5.
                 $cr->setQueryHandler($app['query']);
+                
                 return $cr;
             }
         );
